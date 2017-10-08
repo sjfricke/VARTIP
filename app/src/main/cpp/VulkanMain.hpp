@@ -31,7 +31,7 @@ void DeleteVulkan(void);
 bool IsVulkanReady(void);
 
 // Ask Vulkan to Render a frame
-bool VulkanDrawFrame(void);
+bool VulkanDrawFrame(android_app* app);
 
 #endif // __VULKANMAIN_HPP__
 

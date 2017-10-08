@@ -82,6 +82,8 @@ class ImageReader {
   void DecBufferCount() { buffer_count--; }
   //void SetImageVk(_vkCallback onImageVk) { m_onImageVk = onImageVk; }
 
+
+
  private:
 
   //_vkCallback m_onImageVk;
@@ -93,6 +95,8 @@ class ImageReader {
   void PresentImage90(uint32_t* buf, AImage* image);
   void PresentImage180(uint32_t* buf, AImage* image);
   void PresentImage270(uint32_t* buf, AImage* image);
+
+  void WriteFile(AImage* image);
 
   int32_t imageHeight_;
   int32_t imageWidth_;

@@ -16,6 +16,9 @@
 #include <cassert>
 #include <android/log.h>
 #include <malloc.h>
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#include <stb/stb_image.h>
 #include "vulkan_wrapper.h"
 #include "VulkanMain.hpp"
 #include "CreateShaderModule.h"
@@ -96,6 +99,8 @@ struct VulkanRenderInfo {
     VkFence       fence_;
 };
 VulkanRenderInfo render;
+
+void* mapped_data;
 
 // Camera variables
 NativeCamera* m_native_camera;
@@ -333,6 +338,11 @@ VkResult AllocateMemoryTypeFromProperties(
   return VK_ERROR_MEMORY_MAP_FAILED;
 }
 
+uint32_t imgWidth = 480;
+uint32_t imgHeight = 720;
+uint32_t n = 4;
+uint32_t rowPitch = 1920;
+
 VkResult LoadTextureFromCamera(struct texture_object* tex_obj,
                              VkImageUsageFlags usage,
                              VkFlags required_props) {
@@ -354,10 +364,6 @@ VkResult LoadTextureFromCamera(struct texture_object* tex_obj,
     needBlit = false;
   }
 
-  uint32_t imgWidth = 480;
-  uint32_t imgHeight = 720;
-  uint32_t n = 4;
-
   unsigned char* imageData = (unsigned char*)malloc(n * imgHeight * imgHeight);
 
   uint32_t *imageDataPix = reinterpret_cast<uint32_t *>(imageData);
@@ -365,18 +371,18 @@ VkResult LoadTextureFromCamera(struct texture_object* tex_obj,
   // test make half blue and half red
   for (int ii = 0; ii < imgHeight; ii++) {
     for (int jj = 0; jj < imgWidth; jj++) {
-      if (ii > 3* imgHeight/4) {
-        imageDataPix[imgWidth * ii + jj ] = 0xFF0000FF;
+      if (ii > 3* imgHeight/4 ) {
+        imageDataPix[imgWidth * ii + jj ] = (ii%3==0) ? 0xFFFFFFFF : 0xFF0000FF;
       }
       else if (ii > imgHeight/2) {
-        imageDataPix[imgWidth * ii + jj ] = 0xFF00FF00;
+        imageDataPix[imgWidth * ii + jj ] = (ii%3==0) ? 0xFFFFFFFF : 0xFF00FF00;
       }
       else
       if (ii > imgHeight/4) {
-        imageDataPix[imgWidth * ii + jj ] = 0xFFFF0000;
+        imageDataPix[imgWidth * ii + jj ] = (ii%3==0) ? 0xFFFFFFFF :  0xFFFF0000;
       }
-      else {
-        imageDataPix[imgWidth * ii + jj ] = 0xFFFFFF00;
+      else if (  jj > imgWidth/2) {
+        imageDataPix[imgWidth * ii + jj ] = (ii%3==0) ? 0xFF000000 : 0xFFFFFFFF;
       }
     }
   }
@@ -427,15 +433,19 @@ VkResult LoadTextureFromCamera(struct texture_object* tex_obj,
         .arrayLayer = 0,
     };
     VkSubresourceLayout layout;
-    void* data;
+   // void* data;
 
     vkGetImageSubresourceLayout(device.device_, tex_obj->image, &subres,
                                 &layout);
     CALL_VK(vkMapMemory(device.device_, tex_obj->mem, 0, mem_alloc.allocationSize,
-                        0, &data));
+                        0, &mapped_data));
+
+    LOGI("RowPitch = %d", (int)layout.rowPitch);
+
+    rowPitch = layout.rowPitch;
 
     for (int32_t y = 0; y < imgHeight; y++) {
-      unsigned char* row = (unsigned char*)((char*)data + layout.rowPitch * y);
+      unsigned char* row = (unsigned char*)((char*)mapped_data + layout.rowPitch * y);
       for (int32_t x = 0; x < imgWidth; x++) {
         row[x * 4] = imageData[(x + y * imgWidth) * 4];
         row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
@@ -444,7 +454,7 @@ VkResult LoadTextureFromCamera(struct texture_object* tex_obj,
       }
     }
 
-    vkUnmapMemory(device.device_, tex_obj->mem);
+    //vkUnmapMemory(device.device_, tex_obj->mem);
     free(imageData);
    // stbi_image_free(imageData);
   }
@@ -1198,7 +1208,7 @@ void DeleteVulkan() {
 }
 
 // Draw one frame
-bool VulkanDrawFrame(void) {
+bool VulkanDrawFrame(android_app* app) {
 
   if (m_image_reader->GetBufferCount() == 0) {
     return false;
@@ -1208,6 +1218,57 @@ bool VulkanDrawFrame(void) {
 
   m_image = m_image_reader->GetLatestImage();
   m_image_reader->DisplayImage(camera_buffer, m_image);
+
+//  // Read the file:
+//  AAsset* file = AAssetManager_open(androidAppCtx->activity->assetManager,
+//                                    "sample_tex.png", AASSET_MODE_BUFFER);
+//  size_t fileLength = AAsset_getLength(file);
+//  stbi_uc* fileContent = new unsigned char[fileLength];
+//  AAsset_read(file, fileContent, fileLength);
+//
+//  unsigned char* imageData = stbi_load_from_memory(
+//      fileContent, fileLength, reinterpret_cast<int*>(&imgWidth),
+//      reinterpret_cast<int*>(&imgHeight), reinterpret_cast<int*>(&n), 4);
+//  assert(n == 4);
+
+  unsigned char* imageData = reinterpret_cast<unsigned char*>(camera_buffer);
+
+  for (int32_t y = 0; y < imgHeight; y++) {
+    unsigned char* row = (unsigned char*)((char*)mapped_data + rowPitch * y);
+    for (int32_t x = 0; x < imgWidth/2; x++) {
+      //row[x * 4] = imageData[(x + y * imgWidth) * 4];
+      row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
+      //row[x * 4 + 2] = imageData[(x + y * imgWidth) * 4 + 2];
+     // row[x * 4 + 3] = imageData[(x + y * imgWidth) * 4 + 3];
+    }
+  }
+
+  for (int32_t y = 0; y < imgHeight / 4; y++) {
+    unsigned char* row = (unsigned char*)((char*)mapped_data + rowPitch * y);
+    for (int32_t x = 0; x < imgWidth/2; x++) {
+      row[x * 4] = imageData[(x + y * imgWidth) * 4];
+      row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
+      row[x * 4 + 2] = imageData[(x + y * imgWidth) * 4 + 2];
+      row[x * 4 + 3] = imageData[(x + y * imgWidth) * 4 + 3];
+    }
+  }
+
+//  unsigned char* row = (unsigned char*)((char*)mapped_data);
+//LOGI("H: %d === W: %d", imgHeight, imgWidth);
+//  for (int32_t y = 0; y < 10; y++) {
+//    unsigned char *row = (unsigned char *) ((char *) mapped_data + rowPitch * y);
+//    for (int32_t x = 0; x < imgWidth; x++) {
+//      row[x * 4] = imageData[(x + y * imgWidth) * 4];
+//      row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
+//      row[x * 4 + 2] = imageData[(x + y * imgWidth) * 4 + 2];
+//      row[x * 4 + 3] = imageData[(x + y * imgWidth) * 4 + 3];
+//    }
+//  }
+
+  //uint32_t* row = static_cast<uint32_t *>(mapped_data);
+
+
+  //memcpy(mapped_data, (void*)camera_buffer, 720 * 480 * 4);
 
   uint32_t nextIndex;
   // Get the framebuffer index we should draw in

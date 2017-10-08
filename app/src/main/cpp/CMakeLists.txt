@@ -11,6 +11,7 @@ set(SRC_DIR ${CMAKE_SOURCE_DIR})
 get_filename_component(REPO_ROOT_DIR
    ${CMAKE_SOURCE_DIR}/../../../..  ABSOLUTE)
 set(COMMON_DIR ${REPO_ROOT_DIR}/app/common)
+set(THIRD_PARTY_DIR ${REPO_ROOT_DIR}/app/third_party)
 
 add_library(vktuts SHARED
    ${SRC_DIR}/VulkanMain.cpp
@@ -23,6 +24,7 @@ add_library(vktuts SHARED
 target_include_directories(vktuts PRIVATE
    ${COMMON_DIR}/vulkan_wrapper
    ${COMMON_DIR}/src
+   ${THIRD_PARTY_DIR}
    ${ANDROID_NDK}/sources/android/native_app_glue)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
