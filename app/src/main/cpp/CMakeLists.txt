@@ -16,6 +16,8 @@ add_library(vktuts SHARED
    ${SRC_DIR}/VulkanMain.cpp
    ${SRC_DIR}/AndroidMain.cpp
    ${SRC_DIR}/CreateShaderModule.cpp
+   ${SRC_DIR}/ImageReader.cpp
+   ${SRC_DIR}/NativeCamera.cpp
    ${COMMON_DIR}/vulkan_wrapper/vulkan_wrapper.cpp)
 
 target_include_directories(vktuts PRIVATE
@@ -34,7 +36,7 @@ if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
 endif()
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -u ANativeActivity_onCreate")
-target_link_libraries(vktuts native_glue log android)
+target_link_libraries(vktuts native_glue log android camera2ndk mediandk)
 
 ########     CDep package for shaderc    ######################
 # pre-requirement:

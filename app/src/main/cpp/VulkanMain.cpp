@@ -20,15 +20,6 @@
 #include "VulkanMain.hpp"
 #include "CreateShaderModule.h"
 
-// Android log function wrappers
-static const char* kTAG = "VARTIP";
-#define LOGI(...) \
-  ((void)__android_log_print(ANDROID_LOG_INFO, kTAG, __VA_ARGS__))
-#define LOGW(...) \
-  ((void)__android_log_print(ANDROID_LOG_WARN, kTAG, __VA_ARGS__))
-#define LOGE(...) \
-  ((void)__android_log_print(ANDROID_LOG_ERROR, kTAG, __VA_ARGS__))
-
 // Vulkan call wrapper
 #define CALL_VK(func)                                                 \
   if (VK_SUCCESS != (func)) {                                         \
@@ -105,6 +96,18 @@ struct VulkanRenderInfo {
     VkFence       fence_;
 };
 VulkanRenderInfo render;
+
+// Camera variables
+NativeCamera* m_native_camera;
+
+camera_type m_selected_camera_type = BACK_CAMERA; // Default
+
+// Image Reader
+ImageFormat m_view{0, 0, 0};
+ImageReader* m_image_reader;
+AImage* m_image;
+
+volatile bool m_camera_ready;
 
 // Android Native App pointer...
 android_app* androidAppCtx = nullptr;
@@ -351,11 +354,11 @@ VkResult LoadTextureFromCamera(struct texture_object* tex_obj,
     needBlit = false;
   }
 
-  uint32_t imgWidth = 256;
-  uint32_t imgHeight = 256;
+  uint32_t imgWidth = 480;
+  uint32_t imgHeight = 720;
   uint32_t n = 4;
 
-  unsigned char* imageData = (unsigned char*)malloc(n * imgWidth * imgHeight);
+  unsigned char* imageData = (unsigned char*)malloc(n * imgHeight * imgHeight);
 
   uint32_t *imageDataPix = reinterpret_cast<uint32_t *>(imageData);
 
@@ -661,7 +664,6 @@ bool CreateBuffers(void) {
 
   // Assign the proper memory type for that buffer
   allocInfo.allocationSize = memReq.size;
-  LOGI("AllocationSize: %d", (int)memReq.size);
   MapMemoryTypeToIndex(memReq.memoryTypeBits,
                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                        &allocInfo.memoryTypeIndex);
@@ -958,6 +960,8 @@ VkResult  CreateDescriptorSet() {
   return VK_SUCCESS;
 }
 
+uint32_t* camera_buffer;
+
 // InitVulkan:
 //   Initialize Vulkan Context when android application window is created
 //   upon return, vulkan is ready to draw frames
@@ -968,6 +972,8 @@ bool InitVulkan(android_app* app) {
     LOGW("Vulkan is unavailable, install vulkan and re-start");
     return false;
   }
+
+  camera_buffer = (uint32_t*)malloc(725 * 725 * sizeof(uint32_t));
 
   VkApplicationInfo appInfo = {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -1136,6 +1142,27 @@ bool InitVulkan(android_app* app) {
   return true;
 }
 
+// InitCamera:
+// Sets camera and get a working capture request
+void InitCamera() {
+
+  m_native_camera = new NativeCamera(m_selected_camera_type);
+
+  m_native_camera->MatchCaptureSizeRequest(&m_view, 720, 480);
+
+  ASSERT(m_view.width && m_view.height, "Could not find supportable resolution");
+
+  m_image_reader = new ImageReader(&m_view, AIMAGE_FORMAT_YUV_420_888);
+  m_image_reader->SetPresentRotation(m_native_camera->GetOrientation());
+
+  ANativeWindow* image_reader_window = m_image_reader->GetNativeWindow();
+
+  m_camera_ready = m_native_camera->CreateCaptureSession(image_reader_window);
+
+ // m_image_reader->SetImageVk(&VulkanDrawFrame);
+
+}
+
 // IsVulkanReady():
 //    native app poll to see if we are ready to draw...
 bool IsVulkanReady(void) {
@@ -1172,6 +1199,16 @@ void DeleteVulkan() {
 
 // Draw one frame
 bool VulkanDrawFrame(void) {
+
+  if (m_image_reader->GetBufferCount() == 0) {
+    return false;
+  } else {
+    m_image_reader->DecBufferCount();
+  }
+
+  m_image = m_image_reader->GetLatestImage();
+  m_image_reader->DisplayImage(camera_buffer, m_image);
+
   uint32_t nextIndex;
   // Get the framebuffer index we should draw in
   CALL_VK(vkAcquireNextImageKHR(device.device_, swapchain.swapchain_,

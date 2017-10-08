@@ -16,8 +16,13 @@
 
 // Initialize vulkan device context
 // after return, vulkan is ready to draw
+#include "Util.h"
+#include "ImageReader.h"
+#include "NativeCamera.h"
 #include <android_native_app_glue.h>
 bool InitVulkan(android_app* app);
+
+void InitCamera();
 
 // delete vulkan device context when application goes away
 void DeleteVulkan(void);

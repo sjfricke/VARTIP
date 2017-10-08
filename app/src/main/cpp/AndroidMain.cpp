@@ -21,6 +21,7 @@ void handle_cmd(android_app* app, int32_t cmd) {
     case APP_CMD_INIT_WINDOW:
       // The window is being shown, get it ready.
       InitVulkan(app);
+      InitCamera();
       break;
     case APP_CMD_TERM_WINDOW:
       // The window is being hidden or closed, clean it up.

@@ -5,6 +5,8 @@
     <!-- This is the platform API where NativeActivity was introduced. -->
     <uses-sdk />
 
+    <uses-feature android:name="android.hardware.camera" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.SET_DEBUG_APP"/>
 
     <!-- This .apk has no Java code itself, so set hasCode to false. -->
