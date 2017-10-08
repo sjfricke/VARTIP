@@ -10,14 +10,6 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // Shader compilation directives, put glsl shaders to app/src/main/shaders
-        // android studio will pick them up and compile them into APK/assets/shaders
-        // KNOWN ISSUE:  if shaders having errors, it takes long time for gradle to timeout
-        //               but it will eventually time out and complain about shader compiling
-        shaders {
-            glslcArgs.addAll(['-c', '-g'])
-        }
-
         ndk.abiFilters 'armeabi-v7a', 'arm64-v8a'
         externalNativeBuild {
             cmake.arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static'
@@ -34,6 +26,16 @@ android {
     }
 }
 
-dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
+// ******** Generate cdep module file for shaderc *******
+// this is same as running on command line of: ./cdep [cdep.bat]
+def CDEP_CMD='./cdep'
+if (System.properties['os.name'].toLowerCase().contains('windows')) {
+    CDEP_CMD='cdep.bat'
+}
+if(!file("../.cdep").exists()) {
+    exec {
+        workingDir("..")
+        executable "${CDEP_CMD}"
+        args = []
+    }
 }

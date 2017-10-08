@@ -16,6 +16,7 @@
 
 // Initialize vulkan device context
 // after return, vulkan is ready to draw
+#include <android_native_app_glue.h>
 bool InitVulkan(android_app* app);
 
 // delete vulkan device context when application goes away
