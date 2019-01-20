@@ -78,7 +78,9 @@ bool NativeCamera::MatchCaptureSizeRequest(ImageFormat* resView, int32_t width, 
         int32_t input = entry.data.i32[i * 4 + 3];
         int32_t format = entry.data.i32[i * 4 + 0];
 
-        if (input != 0) { continue; }
+        if (input != 0) {
+            continue;
+        }
 
         if (format == AIMAGE_FORMAT_YUV_420_888) {
             LOGI("--H: %d -- W: %d -- ratio %f", entry.data.i32[i * 4 + 1], entry.data.i32[i * 4 + 2],
@@ -94,8 +96,8 @@ bool NativeCamera::MatchCaptureSizeRequest(ImageFormat* resView, int32_t width, 
     }
 
     if (foundIt) {
-        resView->width = foundRes.org_width();
-        resView->height = foundRes.org_height();
+        resView->width = foundRes.OrgWidth();
+        resView->height = foundRes.OrgHeight();
     } else {
         if (disp.IsPortrait()) {
             resView->width = 480;

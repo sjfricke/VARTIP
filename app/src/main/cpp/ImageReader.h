@@ -62,15 +62,15 @@ class ImageReader {
      */
     void SetPresentRotation(int32_t angle);
 
-    uint8_t GetBufferCount() { return buffer_count; }
-    void DecBufferCount() { buffer_count--; }
+    uint8_t GetBufferCount() { return m_bufferCount; }
+    void DecBufferCount() { m_bufferCount--; }
     // void SetImageVk(_vkCallback onImageVk) { m_onImageVk = onImageVk; }
 
    private:
     //_vkCallback m_onImageVk;
 
-    int32_t presentRotation_;
-    AImageReader* reader_;
+    int32_t m_presentRotation;
+    AImageReader* m_pReader;
 
     void PresentImage(uint32_t* buf, AImage* image);
     void PresentImage90(uint32_t* buf, AImage* image);
@@ -79,17 +79,17 @@ class ImageReader {
 
     void WriteFile(AImage* image);
 
-    int32_t imageHeight_;
-    int32_t imageWidth_;
+    int32_t m_imageHeight;
+    int32_t m_imageWidth;
 
-    uint8_t* imageBuffer_;
+    uint8_t* m_pImageBuffer;
 
-    int32_t yStride, uvStride;
-    uint8_t *yPixel, *uPixel, *vPixel;
-    int32_t yLen, uLen, vLen;
-    int32_t uvPixelStride;
+    int32_t m_yStride, m_uvStride;
+    uint8_t *m_pyPixel, *m_puPixel, *m_pvPixel;
+    int32_t m_yLen, m_uLen, m_vLen;
+    int32_t m_uvPixelStride;
 
-    uint8_t buffer_count;
+    uint8_t m_bufferCount;
 };
 
 #endif  // VARTIP_IMAGEREADER_H_

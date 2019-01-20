@@ -15,7 +15,7 @@ void handle_cmd(android_app* app, int32_t cmd) {
             DeleteVulkan();
             break;
         default:
-            __android_log_print(ANDROID_LOG_INFO, "Vulkan Tutorials", "event not handled: %d", cmd);
+            __android_log_print(ANDROID_LOG_INFO, "VARTIP", "event not handled: %d", cmd);
     }
 }
 
@@ -34,7 +34,7 @@ void android_main(struct android_app* app) {
         }
 
         // render if vulkan is ready
-        if (IsVulkanReady()) {
+        if (IsVulkanReady() == true) {
             VulkanDrawFrame(app);
         }
     } while (app->destroyRequested == 0);

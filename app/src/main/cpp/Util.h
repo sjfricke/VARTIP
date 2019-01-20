@@ -1,12 +1,12 @@
-#ifndef FASTANDFURIOUS_UTIL_H
-#define FASTANDFURIOUS_UTIL_H
+#ifndef VARTIP_UTIL_H_
+#define VARTIP_UTIL_H_
 
 #include <android/log.h>
 #include <stdlib.h>
 #include <unistd.h>
 
 // used to get logcat outputs which can be regex filtered by the LOG_TAG we give
-// So in Logcat you can filter this example by putting "FastAndFurious"
+// So in Logcat you can filter this example by putting "VARTIP"
 #define LOG_TAG "VARTIP"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
@@ -34,58 +34,55 @@ struct ImageFormat {
     int32_t format;  // ex) YUV_420
 };
 
-/**
- * A helper class to assist image size comparison, by comparing the absolute
- * size
- * regardless of the portrait or landscape mode.
- */
+// Helps assist image size comparison, by comparing the absolute size regardless of the portrait or landscape mode
 class DisplayDimension {
    public:
-    DisplayDimension(int32_t w, int32_t h) : w_(w), h_(h), portrait_(false) {
-        if (h > w) {
+    DisplayDimension(int32_t width, int32_t height) : m_width(width), m_height(height), m_portrait(false) {
+        if (height > width) {
             // make it landscape
-            w_ = h;
-            h_ = w;
-            portrait_ = true;
+            m_width = height;
+            m_height = m_width;
+            m_portrait = true;
         }
     }
+
     DisplayDimension(const DisplayDimension& other) {
-        w_ = other.w_;
-        h_ = other.h_;
-        portrait_ = other.portrait_;
+        m_width = other.m_width;
+        m_height = other.m_height;
+        m_portrait = other.m_portrait;
     }
 
     DisplayDimension(void) {
-        w_ = 0;
-        h_ = 0;
-        portrait_ = false;
+        m_width = 0;
+        m_height = 0;
+        m_portrait = false;
     }
-    DisplayDimension& operator=(const DisplayDimension& other) {
-        w_ = other.w_;
-        h_ = other.h_;
-        portrait_ = other.portrait_;
 
+    DisplayDimension& operator=(const DisplayDimension& other) {
+        m_width = other.m_width;
+        m_height = other.m_height;
+        m_portrait = other.m_portrait;
         return (*this);
     }
 
-    bool IsSameRatio(DisplayDimension& other) { return (w_ * other.h_ == h_ * other.w_); }
-    bool operator>(DisplayDimension& other) { return (w_ >= other.w_ & h_ >= other.h_); }
+    bool IsSameRatio(DisplayDimension& other) { return (m_width * other.m_height == m_height * other.m_width); }
+    bool operator>(DisplayDimension& other) { return (m_width >= other.m_width & m_height >= other.m_height); }
     bool operator==(DisplayDimension& other) {
-        return (w_ == other.w_ && h_ == other.h_ && portrait_ == other.portrait_);
+        return ((m_width == other.m_width) && (m_height == other.m_height) && (m_portrait == other.m_portrait));
     }
     DisplayDimension operator-(DisplayDimension& other) {
-        DisplayDimension delta(w_ - other.w_, h_ - other.h_);
+        DisplayDimension delta(m_width - other.m_width, m_height - other.m_height);
         return delta;
     }
-    void Flip(void) { portrait_ = !portrait_; }
-    bool IsPortrait(void) { return portrait_; }
-    int32_t width(void) { return w_; }
-    int32_t height(void) { return h_; }
-    int32_t org_width(void) { return (portrait_ ? h_ : w_); }
-    int32_t org_height(void) { return (portrait_ ? w_ : h_); }
+    void Flip(void) { m_portrait = !m_portrait; }
+    bool IsPortrait(void) { return m_portrait; }
+    int32_t GetWidth(void) { return m_width; }
+    int32_t GetHeight(void) { return m_height; }
+    int32_t OrgWidth(void) { return (m_portrait ? m_height : m_width); }
+    int32_t OrgHeight(void) { return (m_portrait ? m_width : m_height); }
 
    private:
-    int32_t w_, h_;
-    bool portrait_;
+    int32_t m_width, m_height;
+    bool m_portrait;
 };
-#endif  // FASTANDFURIOUS_UTIL_H
+#endif  // VARTIP_UTIL_H_
