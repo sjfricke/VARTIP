@@ -39,19 +39,3 @@ endif()
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -u ANativeActivity_onCreate")
 target_link_libraries(vktuts native_glue log android camera2ndk mediandk)
-
-########     CDep package for shaderc    ######################
-# pre-requirement:
-#    in terminal, cd {project_dir}; ./cdep
-# that will generate .cdep/modules/cdep-dependencies-config.cmake
-# the next 2 lines will be able to pull it into the project
-# shaderc binaries are saved on github:
-#      https://github.com/ggfan/shaderc/releases
-# the glue to reach it for CDep is in ${project_dir}/cdep.yml
-# ******* Most Importantly, CDep full documentation is @:
-#  https://github.com/cdep
-
-get_filename_component(cdep-dependencies_DIR
-   ${CMAKE_SOURCE_DIR}/../../../../.cdep/modules  ABSOLUTE)
-find_package(cdep-dependencies REQUIRED)
-add_all_cdep_dependencies(vktuts)
