@@ -8,6 +8,7 @@
 #include "CreateShaderModule.h"
 #include "VulkanMain.h"
 #include "vulkan_wrapper.h"
+#include "ValidationLayers.h"
 
 // Global Variables ...
 struct VulkanDeviceInfo {
@@ -77,40 +78,57 @@ NativeCamera* m_nativeCamera;
 ImageFormat m_view{0, 0, 0};
 ImageReader* m_imageReader;
 AImage* m_image;
-
 volatile bool m_cameraReady;
+VkDebugReportCallbackEXT debugCallbackHandle;
 
 // Android Native App pointer...
 android_app* androidAppCtx = nullptr;
 
+
 // Create vulkan device
 void CreateVulkanDevice(ANativeWindow* platformWindow, VkApplicationInfo* appInfo) {
-    std::vector<const char*> instance_extensions;
-    std::vector<const char*> device_extensions;
+    std::vector<const char*> instanceExtensions;
+    std::vector<const char*> instanceLayers;
+    std::vector<const char*> deviceExtensions;
 
-    instance_extensions.push_back("VK_KHR_surface");
-    instance_extensions.push_back("VK_KHR_android_surface");
+    instanceExtensions.push_back("VK_KHR_surface");
+    instanceExtensions.push_back("VK_KHR_android_surface");
+    deviceExtensions.push_back("VK_KHR_swapchain");
 
-    device_extensions.push_back("VK_KHR_swapchain");
+#if (VARTIP_VALIDATION_LAYERS)
+    instanceExtensions.push_back("VK_EXT_debug_report");
+    // VK_GOOGLE_THREADING_LAYER better to be the very first one
+    // VK_LAYER_GOOGLE_unique_objects need to be after VK_LAYER_LUNARG_core_validation
+    instanceLayers.push_back("VK_LAYER_GOOGLE_threading");
+    instanceLayers.push_back("VK_LAYER_LUNARG_core_validation");
+    instanceLayers.push_back("VK_LAYER_GOOGLE_unique_objects");
+    instanceLayers.push_back("VK_LAYER_LUNARG_object_tracker");
+    instanceLayers.push_back("VK_LAYER_LUNARG_parameter_validation");
+#endif
 
-    // **********************************************************
     // Create the Vulkan instance
     VkInstanceCreateInfo instanceCreateInfo{
         .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         .pNext = nullptr,
         .pApplicationInfo = appInfo,
-        .enabledExtensionCount = static_cast<uint32_t>(instance_extensions.size()),
-        .ppEnabledExtensionNames = instance_extensions.data(),
-        .enabledLayerCount = 0,
-        .ppEnabledLayerNames = nullptr,
+        .enabledExtensionCount = static_cast<uint32_t>(instanceExtensions.size()),
+        .ppEnabledExtensionNames = instanceExtensions.data(),
+        .enabledLayerCount = static_cast<uint32_t>(instanceLayers.size()),
+        .ppEnabledLayerNames = instanceLayers.data(),
     };
     CALL_VK(vkCreateInstance(&instanceCreateInfo, nullptr, &device.instance));
+
+#if (VARTIP_VALIDATION_LAYERS)
+    CreateDebugReportExt(device.instance, &debugCallbackHandle);
+#endif
+
     VkAndroidSurfaceCreateInfoKHR createInfo{.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
                                              .pNext = nullptr,
                                              .flags = 0,
                                              .window = platformWindow};
 
     CALL_VK(vkCreateAndroidSurfaceKHR(device.instance, &createInfo, nullptr, &device.surface));
+
     // Find one GPU to use:
     // On Android, every GPU device is equal -- supporting
     // graphics/compute/present for this sample, we use the very first GPU device
@@ -143,8 +161,8 @@ void CreateVulkanDevice(ANativeWindow* platformWindow, VkApplicationInfo* appInf
         .pQueueCreateInfos = &queueCreateInfo,
         .enabledLayerCount = 0,
         .ppEnabledLayerNames = nullptr,
-        .enabledExtensionCount = static_cast<uint32_t>(device_extensions.size()),
-        .ppEnabledExtensionNames = device_extensions.data(),
+        .enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size()),
+        .ppEnabledExtensionNames = deviceExtensions.data(),
         .pEnabledFeatures = nullptr,
     };
 
@@ -153,14 +171,11 @@ void CreateVulkanDevice(ANativeWindow* platformWindow, VkApplicationInfo* appInf
 }
 
 void CreateSwapChain() {
-    LOGI("->createSwapChain");
     memset(&swapchain, 0, sizeof(swapchain));
 
-    // **********************************************************
     // Get the surface capabilities because:
     //   - It contains the minimal and max length of the chain, we will need it
-    //   - It's necessary to query the supported surface format (R8G8B8A8 for
-    //   instance ...)
+    //   - It's necessary to query the supported surface format (R8G8B8A8 for instance ...)
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.gpuDevice, device.surface, &surfaceCapabilities);
     // Query the list of supported surface format and choose one we like
@@ -178,8 +193,6 @@ void CreateSwapChain() {
 
     swapchain.displaySize = surfaceCapabilities.currentExtent;
     swapchain.displayFormat = formats[chosenFormat].format;
-
-    // **********************************************************
     // Create a swap chain (here we choose the minimum available number of surface
     // in the chain)
     uint32_t queueFamily = 0;
@@ -206,7 +219,6 @@ void CreateSwapChain() {
     // Get the length of the created swap chain
     CALL_VK(vkGetSwapchainImagesKHR(device.device, swapchain.swapchain, &swapchain.swapchainLength, nullptr));
     delete[] formats;
-    LOGI("<-createSwapChain");
 }
 
 void CreateFrameBuffers(VkRenderPass& renderPass, VkImageView depthView = VK_NULL_HANDLE) {
@@ -312,23 +324,6 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
 
     unsigned char* imageData = (unsigned char*)malloc(n * imgHeight * imgHeight);
 
-    uint32_t* imageDataPix = reinterpret_cast<uint32_t*>(imageData);
-
-    // test make half blue and half red
-    for (int ii = 0; ii < imgHeight; ii++) {
-        for (int jj = 0; jj < imgWidth; jj++) {
-            if (ii > 3 * imgHeight / 4) {
-                imageDataPix[imgWidth * ii + jj] = (ii % 3 == 0) ? 0xFFFFFFFF : 0xFF0000FF;
-            } else if (ii > imgHeight / 2) {
-                imageDataPix[imgWidth * ii + jj] = (ii % 3 == 0) ? 0xFFFFFFFF : 0xFF00FF00;
-            } else if (ii > imgHeight / 4) {
-                imageDataPix[imgWidth * ii + jj] = (ii % 3 == 0) ? 0xFFFFFFFF : 0xFFFF0000;
-            } else if (jj > imgWidth / 2) {
-                imageDataPix[imgWidth * ii + jj] = (ii % 3 == 0) ? 0xFF000000 : 0xFFFFFFFF;
-            }
-        }
-    }
-
     textureObj->texWidth = imgWidth;
     textureObj->texHeight = imgHeight;
 
@@ -399,7 +394,7 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
     textureObj->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     // If linear is supported, we are done
-    if (!needBlit) {
+    if (needBlit == false) {
         return VK_SUCCESS;
     }
 
@@ -1079,6 +1074,10 @@ void DeleteVulkan() {
     DeleteGraphicsPipeline();
     DeleteBuffers();
 
+#if (VARTIP_VALIDATION_LAYERS)
+    DestroyDebugReportExt(device.instance, debugCallbackHandle);
+#endif
+
     vkDestroyDevice(device.device, nullptr);
     vkDestroyInstance(device.instance, nullptr);
 
@@ -1096,33 +1095,23 @@ bool VulkanDrawFrame(android_app* app) {
     m_image = m_imageReader->GetLatestImage();
     m_imageReader->DisplayImage(cameraBuffer, m_image);
 
-    //  // Read the file:
-    //  AAsset* file = AAssetManager_open(androidAppCtx->activity->assetManager,
-    //                                    "sample_tex.png", AASSET_MODE_BUFFER);
-    //  size_t fileLength = AAsset_getLength(file);
-    //  stbi_uc* fileContent = new unsigned char[fileLength];
-    //  AAsset_read(file, fileContent, fileLength);
+    // Read the file:
+    //      AAsset* file = AAssetManager_open(androidAppCtx->activity->assetManager,
+    //                                        "sample_tex.png", AASSET_MODE_BUFFER);
+    //      size_t fileLength = AAsset_getLength(file);
+    //      stbi_uc* fileContent = new unsigned char[fileLength];
+    //      AAsset_read(file, fileContent, fileLength);
     //
-    //  unsigned char* imageData = stbi_load_from_memory(
-    //      fileContent, fileLength, reinterpret_cast<int*>(&imgWidth),
-    //      reinterpret_cast<int*>(&imgHeight), reinterpret_cast<int*>(&n), 4);
-    //  assert(n == 4);
+    //      unsigned char* imageData = stbi_load_from_memory(
+    //          fileContent, fileLength, reinterpret_cast<int*>(&imgWidth),
+    //          reinterpret_cast<int*>(&imgHeight), reinterpret_cast<int*>(&n), 4);
+    //      assert(n == 4);
 
     unsigned char* imageData = reinterpret_cast<unsigned char*>(cameraBuffer);
 
     for (int32_t y = 0; y < imgHeight; y++) {
         unsigned char* row = (unsigned char*)((char*)mappedData + rowPitch * y);
-        for (int32_t x = 0; x < imgWidth / 2; x++) {
-            // row[x * 4] = imageData[(x + y * imgWidth) * 4];
-            row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
-            // row[x * 4 + 2] = imageData[(x + y * imgWidth) * 4 + 2];
-            // row[x * 4 + 3] = imageData[(x + y * imgWidth) * 4 + 3];
-        }
-    }
-
-    for (int32_t y = 0; y < imgHeight / 4; y++) {
-        unsigned char* row = (unsigned char*)((char*)mappedData + rowPitch * y);
-        for (int32_t x = 0; x < imgWidth / 2; x++) {
+        for (int32_t x = 0; x < imgWidth; x++) {
             row[x * 4] = imageData[(x + y * imgWidth) * 4];
             row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
             row[x * 4 + 2] = imageData[(x + y * imgWidth) * 4 + 2];

@@ -6,6 +6,8 @@
 #include "NativeCamera.h"
 #include "Util.h"
 
+#define VARTIP_VALIDATION_LAYERS true
+
 bool InitVulkan(android_app* app);
 
 void InitCamera();

@@ -16,15 +16,15 @@ void OnImageCallback(void* ctx, AImageReader* reader) { reinterpret_cast<ImageRe
 
 // TODO m_imageHeight and m_imageWidth are not used at
 ImageReader::ImageReader(ImageFormat* res, enum AIMAGE_FORMATS format)
-    : m_reader(nullptr), m_presentRotation(0), m_imageHeight(res->height), m_imageWidth(res->width), m_bufferCount(0) {
-    media_status_t status = AImageReader_new(res->width, res->height, format, MAX_BUF_COUNT, &m_reader);
-    ASSERT(m_reader && status == AMEDIA_OK, "Failed to create AImageReader");
+    : m_pReader(nullptr), m_presentRotation(0), m_imageHeight(res->height), m_imageWidth(res->width), m_bufferCount(0) {
+    media_status_t status = AImageReader_new(res->width, res->height, format, MAX_BUF_COUNT, &m_pReader);
+    ASSERT(m_pReader && status == AMEDIA_OK, "Failed to create AImageReader");
 
     AImageReader_ImageListener listener{
         .context = this,
         .onImageAvailable = OnImageCallback,
     };
-    AImageReader_setImageListener(m_reader, &listener);
+    AImageReader_setImageListener(m_pReader, &listener);
 
     // assuming 4 bit per pixel max
     LOGE("Image Buffer Size: %d", res->width * res->height * 4);
@@ -33,8 +33,8 @@ ImageReader::ImageReader(ImageFormat* res, enum AIMAGE_FORMATS format)
 }
 
 ImageReader::~ImageReader() {
-    ASSERT(m_reader, "NULL Pointer to %s", __FUNCTION__);
-    AImageReader_delete(m_reader);
+    ASSERT(m_pReader, "NULL Pointer to %s", __FUNCTION__);
+    AImageReader_delete(m_pReader);
 
     if (m_pImageBuffer != nullptr) {
         free(m_pImageBuffer);
