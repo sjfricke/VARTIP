@@ -1001,7 +1001,7 @@ bool InitVulkan(android_app* app) {
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(render.cmdBuffer[bufferIndex], 0, 1, &buffers.vertexBuffer, &offset);
 
-        // Draw Triangle
+        // Draw quad
         vkCmdDraw(render.cmdBuffer[bufferIndex], 6, 1, 0, 0);
 
         vkCmdEndRenderPass(render.cmdBuffer[bufferIndex]);
@@ -1083,8 +1083,9 @@ void DeleteVulkan() {
 
     device.initialized = false;
 }
-
+int test = 0;
 // Draw one frame
+#include <unistd.h>
 bool VulkanDrawFrame(android_app* app) {
     if (m_imageReader->GetBufferCount() == 0) {
         return false;
@@ -1096,40 +1097,30 @@ bool VulkanDrawFrame(android_app* app) {
     m_imageReader->DisplayImage(cameraBuffer, m_image);
 
     // Read the file:
-    //      AAsset* file = AAssetManager_open(androidAppCtx->activity->assetManager,
-    //                                        "sample_tex.png", AASSET_MODE_BUFFER);
-    //      size_t fileLength = AAsset_getLength(file);
-    //      stbi_uc* fileContent = new unsigned char[fileLength];
-    //      AAsset_read(file, fileContent, fileLength);
-    //
-    //      unsigned char* imageData = stbi_load_from_memory(
-    //          fileContent, fileLength, reinterpret_cast<int*>(&imgWidth),
-    //          reinterpret_cast<int*>(&imgHeight), reinterpret_cast<int*>(&n), 4);
-    //      assert(n == 4);
+//          AAsset* file = AAssetManager_open(androidAppCtx->activity->assetManager, "sample_tex.png", AASSET_MODE_BUFFER);
+//          size_t fileLength = AAsset_getLength(file);
+//          stbi_uc* fileContent = new unsigned char[fileLength];
+//          AAsset_read(file, fileContent, fileLength);
+//
+//          unsigned char* imageData = stbi_load_from_memory(
+//              fileContent, fileLength, reinterpret_cast<int*>(&imgWidth),
+//              reinterpret_cast<int*>(&imgHeight), reinterpret_cast<int*>(&n), 4);
+//          assert(n == 4);
 
     unsigned char* imageData = reinterpret_cast<unsigned char*>(cameraBuffer);
 
     for (int32_t y = 0; y < imgHeight; y++) {
         unsigned char* row = (unsigned char*)((char*)mappedData + rowPitch * y);
         for (int32_t x = 0; x < imgWidth; x++) {
-            row[x * 4] = imageData[(x + y * imgWidth) * 4];
-            row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
-            row[x * 4 + 2] = imageData[(x + y * imgWidth) * 4 + 2];
-            row[x * 4 + 3] = imageData[(x + y * imgWidth) * 4 + 3];
+            // When reading from File its imgWidth
+            // When reading from camera it seems to be a 720x720 buffer
+            // ... TODO
+            row[x * 4] = imageData[(x + (y * imgHeight)) * 4];
+            row[x * 4 + 1] = imageData[((x + (y * imgHeight)) * 4) + 1];
+            row[x * 4 + 2] = imageData[((x + (y * imgHeight)) * 4) + 2];
+            row[x * 4 + 3] = imageData[((x + (y * imgHeight)) * 4) + 3];
         }
     }
-
-    //  unsigned char* row = (unsigned char*)((char*)mappedData);
-    // LOGI("H: %d === W: %d", imgHeight, imgWidth);
-    //  for (int32_t y = 0; y < 10; y++) {
-    //    unsigned char *row = (unsigned char *) ((char *) mappedData + rowPitch
-    //    * y); for (int32_t x = 0; x < imgWidth; x++) {
-    //      row[x * 4] = imageData[(x + y * imgWidth) * 4];
-    //      row[x * 4 + 1] = imageData[(x + y * imgWidth) * 4 + 1];
-    //      row[x * 4 + 2] = imageData[(x + y * imgWidth) * 4 + 2];
-    //      row[x * 4 + 3] = imageData[(x + y * imgWidth) * 4 + 3];
-    //    }
-    //  }
 
     // uint32_t* row = static_cast<uint32_t *>(mappedData);
 
