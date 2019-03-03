@@ -4,10 +4,9 @@
 #include "Util.h"
 
 // Simple Dbg Callback function to be used by Vk engine
-static VkBool32 VKAPI_PTR DebugReportCallback(VkDebugReportFlagsEXT flags,
-                                                       VkDebugReportObjectTypeEXT objectType, uint64_t object,
-                                                       size_t location, int32_t messageCode, const char* pLayerPrefix,
-                                                       const char* pMessage, void* pUserData) {
+static VkBool32 VKAPI_PTR DebugReportCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
+                                              uint64_t object, size_t location, int32_t messageCode,
+                                              const char* pLayerPrefix, const char* pMessage, void* pUserData) {
     if ((flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT) != 0) {
         LOGI("%s -- %s", pLayerPrefix, pMessage);
     }

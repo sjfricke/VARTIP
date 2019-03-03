@@ -7,7 +7,7 @@ set(APP_GLUE_DIR ${ANDROID_NDK}/sources/android/native_app_glue)
 include_directories(${APP_GLUE_DIR})
 add_library(native_glue STATIC ${APP_GLUE_DIR}/android_native_app_glue.c)
 
-# Validation layers
+# Validation layers and Vulkan headers
 set(VK_VAL_LAYER_SRC_DIR ${ANDROID_NDK}/sources/third_party/vulkan/src)
 include_directories(${VK_VAL_LAYER_SRC_DIR}/include)
 
@@ -17,7 +17,7 @@ get_filename_component(REPO_ROOT_DIR  ${CMAKE_SOURCE_DIR}/../../../.. ABSOLUTE)
 set(COMMON_DIR ${REPO_ROOT_DIR}/app/common)
 set(THIRD_PARTY_DIR ${REPO_ROOT_DIR}/app/third_party)
 
-add_library(vktuts SHARED
+add_library(vartip SHARED
    ${SRC_DIR}/VulkanMain.cpp
    ${SRC_DIR}/AndroidMain.cpp
    ${SRC_DIR}/CreateShaderModule.cpp
@@ -26,7 +26,7 @@ add_library(vktuts SHARED
    ${SRC_DIR}/ValidationLayers.cpp
    ${COMMON_DIR}/vulkan_wrapper/vulkan_wrapper.cpp)
 
-target_include_directories(vktuts PRIVATE
+target_include_directories(vartip PRIVATE
    ${COMMON_DIR}/vulkan_wrapper
    ${COMMON_DIR}/src
    ${THIRD_PARTY_DIR}
@@ -43,7 +43,7 @@ if (${ANDROID_ABI} STREQUAL "armeabi-v7a")
 endif()
 
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -u ANativeActivity_onCreate")
-target_link_libraries(vktuts
+target_link_libraries(vartip
                       native_glue
                       log
                       android

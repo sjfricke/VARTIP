@@ -8,11 +8,11 @@
 
 #define VARTIP_VALIDATION_LAYERS true
 
-bool InitVulkan(android_app* app);
+bool InitVulkanContext(android_app* app);
 
 void InitCamera();
 
-void DeleteVulkan(void);
+void DeleteVulkanContext(void);
 
 bool IsVulkanReady(void);
 

@@ -6,9 +6,9 @@
 #define STBI_ONLY_PNG
 #include <stb/stb_image.h>
 #include "CreateShaderModule.h"
+#include "ValidationLayers.h"
 #include "VulkanMain.h"
 #include "vulkan_wrapper.h"
-#include "ValidationLayers.h"
 
 // Global Variables ...
 struct VulkanDeviceInfo {
@@ -19,6 +19,7 @@ struct VulkanDeviceInfo {
     VkDevice device;
     VkSurfaceKHR surface;
     VkQueue queue;
+    uint32_t queueFamilyIndex;
 };
 VulkanDeviceInfo device;
 
@@ -84,7 +85,6 @@ VkDebugReportCallbackEXT debugCallbackHandle;
 // Android Native App pointer...
 android_app* androidAppCtx = nullptr;
 
-
 // Create vulkan device
 void CreateVulkanDevice(ANativeWindow* platformWindow, VkApplicationInfo* appInfo) {
     std::vector<const char*> instanceExtensions;
@@ -129,15 +129,27 @@ void CreateVulkanDevice(ANativeWindow* platformWindow, VkApplicationInfo* appInf
 
     CALL_VK(vkCreateAndroidSurfaceKHR(device.instance, &createInfo, nullptr, &device.surface));
 
-    // Find one GPU to use:
-    // On Android, every GPU device is equal -- supporting
-    // graphics/compute/present for this sample, we use the very first GPU device
-    // found on the system
     uint32_t gpuCount = 0;
     CALL_VK(vkEnumeratePhysicalDevices(device.instance, &gpuCount, nullptr));
     VkPhysicalDevice tmpGpus[gpuCount];
     CALL_VK(vkEnumeratePhysicalDevices(device.instance, &gpuCount, tmpGpus));
     device.gpuDevice = tmpGpus[0];  // Pick up the first GPU Device
+
+    // Find a Graphics queue family
+    uint32_t queueFamilyCount;
+    vkGetPhysicalDeviceQueueFamilyProperties(device.gpuDevice, &queueFamilyCount, nullptr);
+    assert(queueFamilyCount > 0);
+    std::vector<VkQueueFamilyProperties> queueFamilyProperties(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device.gpuDevice, &queueFamilyCount, queueFamilyProperties.data());
+
+    uint32_t queueFamilyIndex;
+    for (queueFamilyIndex = 0; queueFamilyIndex < queueFamilyCount; queueFamilyIndex++) {
+        if (queueFamilyProperties[queueFamilyIndex].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            break;
+        }
+    }
+    assert(queueFamilyIndex < queueFamilyCount);
+    device.queueFamilyIndex = queueFamilyIndex;
 
     vkGetPhysicalDeviceMemoryProperties(device.gpuDevice, &device.gpuMemoryProperties);
 
@@ -150,7 +162,7 @@ void CreateVulkanDevice(ANativeWindow* platformWindow, VkApplicationInfo* appInf
         .pNext = nullptr,
         .flags = 0,
         .queueCount = 1,
-        .queueFamilyIndex = 0,
+        .queueFamilyIndex = device.queueFamilyIndex,
         .pQueuePriorities = priorities,
     };
 
@@ -167,7 +179,7 @@ void CreateVulkanDevice(ANativeWindow* platformWindow, VkApplicationInfo* appInf
     };
 
     CALL_VK(vkCreateDevice(device.gpuDevice, &deviceCreateInfo, nullptr, &device.device));
-    vkGetDeviceQueue(device.device, 0, 0, &device.queue);
+    vkGetDeviceQueue(device.device, device.queueFamilyIndex, 0, &device.queue);
 }
 
 void CreateSwapChain() {
@@ -195,7 +207,6 @@ void CreateSwapChain() {
     swapchain.displayFormat = formats[chosenFormat].format;
     // Create a swap chain (here we choose the minimum available number of surface
     // in the chain)
-    uint32_t queueFamily = 0;
     VkSwapchainCreateInfoKHR swapchainCreateInfo{
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .pNext = nullptr,
@@ -209,7 +220,8 @@ void CreateSwapChain() {
         .imageArrayLayers = 1,
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .queueFamilyIndexCount = 1,
-        .pQueueFamilyIndices = &queueFamily,
+        .pQueueFamilyIndices = &device.queueFamilyIndex,
+        .compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
         .presentMode = VK_PRESENT_MODE_FIFO_KHR,
         .oldSwapchain = VK_NULL_HANDLE,
         .clipped = VK_FALSE,
@@ -350,11 +362,11 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
         .memoryTypeIndex = 0,
     };
 
-    VkMemoryRequirements mem_reqs;
+    VkMemoryRequirements memReqs;
     CALL_VK(vkCreateImage(device.device, &image_create_info, nullptr, &textureObj->image));
-    vkGetImageMemoryRequirements(device.device, textureObj->image, &mem_reqs);
-    memAlloc.allocationSize = mem_reqs.size;
-    VK_CHECK(AllocateMemoryTypeFromProperties(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+    vkGetImageMemoryRequirements(device.device, textureObj->image, &memReqs);
+    memAlloc.allocationSize = memReqs.size;
+    VK_CHECK(AllocateMemoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                                               &memAlloc.memoryTypeIndex));
     CALL_VK(vkAllocateMemory(device.device, &memAlloc, nullptr, &textureObj->memory));
     CALL_VK(vkBindImageMemory(device.device, textureObj->image, textureObj->memory, 0));
@@ -408,10 +420,10 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
     image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
     image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     CALL_VK(vkCreateImage(device.device, &image_create_info, nullptr, &textureObj->image));
-    vkGetImageMemoryRequirements(device.device, textureObj->image, &mem_reqs);
+    vkGetImageMemoryRequirements(device.device, textureObj->image, &memReqs);
 
-    memAlloc.allocationSize = mem_reqs.size;
-    VK_CHECK(AllocateMemoryTypeFromProperties(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    memAlloc.allocationSize = memReqs.size;
+    VK_CHECK(AllocateMemoryTypeFromProperties(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                               &memAlloc.memoryTypeIndex));
     CALL_VK(vkAllocateMemory(device.device, &memAlloc, nullptr, &textureObj->memory));
     CALL_VK(vkBindImageMemory(device.device, textureObj->image, textureObj->memory, 0));
@@ -426,7 +438,7 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
     VkCommandPool cmdPool;
     CALL_VK(vkCreateCommandPool(device.device, &cmdPoolCreateInfo, nullptr, &cmdPool));
 
-    VkCommandBuffer gfxCmd;
+    VkCommandBuffer graphicCmd;
     const VkCommandBufferAllocateInfo cmd = {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .pNext = nullptr,
@@ -435,12 +447,12 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
         .commandBufferCount = 1,
     };
 
-    CALL_VK(vkAllocateCommandBuffers(device.device, &cmd, &gfxCmd));
-    VkCommandBufferBeginInfo cmd_buf_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                                             .pNext = nullptr,
-                                             .flags = 0,
-                                             .pInheritanceInfo = nullptr};
-    CALL_VK(vkBeginCommandBuffer(gfxCmd, &cmd_buf_info));
+    CALL_VK(vkAllocateCommandBuffers(device.device, &cmd, &graphicCmd));
+    VkCommandBufferBeginInfo cmdBufferInfo = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                                              .pNext = nullptr,
+                                              .flags = 0,
+                                              .pInheritanceInfo = nullptr};
+    CALL_VK(vkBeginCommandBuffer(graphicCmd, &cmdBufferInfo));
 
     VkImageCopy bltInfo = {
         .srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -461,10 +473,10 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
         .extent.height = imgHeight,
         .extent.depth = 1,
     };
-    vkCmdCopyImage(gfxCmd, stageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureObj->image,
+    vkCmdCopyImage(graphicCmd, stageImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureObj->image,
                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bltInfo);
 
-    CALL_VK(vkEndCommandBuffer(gfxCmd));
+    CALL_VK(vkEndCommandBuffer(graphicCmd));
     VkFenceCreateInfo fenceInfo = {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .pNext = nullptr,
@@ -480,7 +492,7 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
         .pWaitSemaphores = nullptr,
         .pWaitDstStageMask = nullptr,
         .commandBufferCount = 1,
-        .pCommandBuffers = &gfxCmd,
+        .pCommandBuffers = &graphicCmd,
         .signalSemaphoreCount = 0,
         .pSignalSemaphores = nullptr,
     };
@@ -488,7 +500,7 @@ VkResult LoadTextureFromCamera(struct texture_object* textureObj, VkImageUsageFl
     CALL_VK(vkWaitForFences(device.device, 1, &fence, VK_TRUE, 100000000) != VK_SUCCESS);
     vkDestroyFence(device.device, fence, nullptr);
 
-    vkFreeCommandBuffers(device.device, cmdPool, 1, &gfxCmd);
+    vkFreeCommandBuffers(device.device, cmdPool, 1, &graphicCmd);
     vkDestroyCommandPool(device.device, cmdPool, nullptr);
     vkDestroyImage(device.device, stageImage, nullptr);
     vkFreeMemory(device.device, stageMem, nullptr);
@@ -566,7 +578,6 @@ bool CreateBuffers(void) {
     };
 
     // Create a vertex buffer
-    uint32_t queueIdx = 0;
     VkBufferCreateInfo createBufferInfo{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .pNext = nullptr,
@@ -574,7 +585,7 @@ bool CreateBuffers(void) {
         .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         .flags = 0,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .pQueueFamilyIndices = &queueIdx,
+        .pQueueFamilyIndices = &device.queueFamilyIndex,
         .queueFamilyIndexCount = 1,
     };
 
@@ -638,19 +649,13 @@ VkResult CreateGraphicsPipeline() {
     };
     CALL_VK(vkCreatePipelineLayout(device.device, &pipelineLayoutCreateInfo, nullptr, &gfxPipeline.layout));
 
-    // No dynamic state in that tutorial
-    VkPipelineDynamicStateCreateInfo dynamicStateInfo{.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-                                                      .pNext = nullptr,
-                                                      .dynamicStateCount = 0,
-                                                      .pDynamicStates = nullptr};
-
     // Specify vertex and fragment shader stages
     VkPipelineShaderStageCreateInfo shaderStages[2]{
         {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .pNext = nullptr,
             .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = LoadSPIRVShader(androidAppCtx, "shaders/tri.vert.spv", device.device),
+            .module = LoadSPIRVShader(androidAppCtx, "shaders/camera.vert.spv", device.device),
             .pSpecializationInfo = nullptr,
             .flags = 0,
             .pName = "main",
@@ -659,7 +664,7 @@ VkResult CreateGraphicsPipeline() {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
             .pNext = nullptr,
             .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = LoadSPIRVShader(androidAppCtx, "shaders/tri.frag.spv", device.device),
+            .module = LoadSPIRVShader(androidAppCtx, "shaders/camera.frag.spv", device.device),
             .pSpecializationInfo = nullptr,
             .flags = 0,
             .pName = "main",
@@ -792,7 +797,7 @@ VkResult CreateGraphicsPipeline() {
         .pMultisampleState = &multisampleInfo,
         .pDepthStencilState = nullptr,
         .pColorBlendState = &colorBlendInfo,
-        .pDynamicState = &dynamicStateInfo,
+        .pDynamicState = nullptr,
         .layout = gfxPipeline.layout,
         .renderPass = render.renderPass,
         .subpass = 0,
@@ -867,11 +872,11 @@ VkResult CreateDescriptorSet() {
 uint32_t* cameraBuffer;
 
 // Initialize Vulkan Context when android application window is created upon return, vulkan is ready to draw frames
-bool InitVulkan(android_app* app) {
+bool InitVulkanContext(android_app* app) {
     androidAppCtx = app;
 
     if (InitVulkan() == false) {
-        LOGW("Vulkan is unavailable, install vulkan and re-start");
+        LOGW("Vulkan dlopen is unavailable, install vulkan and re-start");
         return false;
     }
 
@@ -900,7 +905,7 @@ bool InitVulkan(android_app* app) {
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
         .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
         .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
     };
 
@@ -939,13 +944,12 @@ bool InitVulkan(android_app* app) {
 
     CreateDescriptorSet();
 
-    // -----------------------------------------------
     // Create a pool of command buffers to allocate command buffer from
     VkCommandPoolCreateInfo cmdPoolCreateInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-        .queueFamilyIndex = 0,
+        .queueFamilyIndex = device.queueFamilyIndex,
     };
     CALL_VK(vkCreateCommandPool(device.device, &cmdPoolCreateInfo, nullptr, &render.cmdPool));
 
@@ -1064,7 +1068,7 @@ void DeleteSwapChain() {
     vkDestroySwapchainKHR(device.device, swapchain.swapchain, nullptr);
 }
 
-void DeleteVulkan() {
+void DeleteVulkanContext() {
     vkFreeCommandBuffers(device.device, render.cmdPool, render.cmdBufferLength, render.cmdBuffer);
     delete[] render.cmdBuffer;
 
@@ -1083,9 +1087,7 @@ void DeleteVulkan() {
 
     device.initialized = false;
 }
-int test = 0;
-// Draw one frame
-#include <unistd.h>
+
 bool VulkanDrawFrame(android_app* app) {
     if (m_imageReader->GetBufferCount() == 0) {
         return false;
@@ -1097,15 +1099,14 @@ bool VulkanDrawFrame(android_app* app) {
     m_imageReader->DisplayImage(cameraBuffer, m_image);
 
     // Read the file:
-//          AAsset* file = AAssetManager_open(androidAppCtx->activity->assetManager, "sample_tex.png", AASSET_MODE_BUFFER);
-//          size_t fileLength = AAsset_getLength(file);
-//          stbi_uc* fileContent = new unsigned char[fileLength];
-//          AAsset_read(file, fileContent, fileLength);
-//
-//          unsigned char* imageData = stbi_load_from_memory(
-//              fileContent, fileLength, reinterpret_cast<int*>(&imgWidth),
-//              reinterpret_cast<int*>(&imgHeight), reinterpret_cast<int*>(&n), 4);
-//          assert(n == 4);
+    //          AAsset* file = AAssetManager_open(androidAppCtx->activity->assetManager, "sample_tex.png",
+    //          AASSET_MODE_BUFFER); size_t fileLength = AAsset_getLength(file); stbi_uc* fileContent = new unsigned
+    //          char[fileLength]; AAsset_read(file, fileContent, fileLength);
+    //
+    //          unsigned char* imageData = stbi_load_from_memory(
+    //              fileContent, fileLength, reinterpret_cast<int*>(&imgWidth),
+    //              reinterpret_cast<int*>(&imgHeight), reinterpret_cast<int*>(&n), 4);
+    //          assert(n == 4);
 
     unsigned char* imageData = reinterpret_cast<unsigned char*>(cameraBuffer);
 
@@ -1144,8 +1145,6 @@ bool VulkanDrawFrame(android_app* app) {
                                 .pSignalSemaphores = nullptr};
     CALL_VK(vkQueueSubmit(device.queue, 1, &submit_info, render.fence));
     CALL_VK(vkWaitForFences(device.device, 1, &render.fence, VK_TRUE, 100000000));
-
-    // LOGI("Drawing frames......");
 
     VkResult result;
     VkPresentInfoKHR presentInfo{

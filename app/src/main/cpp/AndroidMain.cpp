@@ -7,12 +7,12 @@ void handle_cmd(android_app* app, int32_t cmd) {
     switch (cmd) {
         case APP_CMD_INIT_WINDOW:
             // The window is being shown, get it ready.
-            InitVulkan(app);
+            InitVulkanContext(app);
             InitCamera();
             break;
         case APP_CMD_TERM_WINDOW:
             // The window is being hidden or closed, clean it up.
-            DeleteVulkan();
+            DeleteVulkanContext();
             break;
         default:
             __android_log_print(ANDROID_LOG_INFO, "VARTIP", "event not handled: %d", cmd);
