@@ -7,7 +7,7 @@ def valLayerBinDir = "${ndkDir}/sources/third_party/vulkan/src/build-android/jni
 
 android {
     compileSdkVersion 26
-    buildToolsVersion "27.0.3"
+    buildToolsVersion "28.0.3"
     defaultConfig {
         applicationId "com.sjfricke.vartip"
         minSdkVersion 24
@@ -38,6 +38,7 @@ android {
     }
 
     externalNativeBuild {
+        version '3.10.2'
         cmake.path 'src/main/cpp/CMakeLists.txt'
     }
 }
